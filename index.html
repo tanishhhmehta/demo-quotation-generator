@@ -8,6 +8,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     .zivo { margin-top: 4px; }
@@ -328,7 +329,8 @@
     .field-input {
       font-size: 14px; color: #000000;
       border: none; border-bottom: 0.5px solid #B4B2A9;
-      background: transparent; padding: 3px 0 4px;
+      background: transparent; padding: 6px 0 8px;line-height: 1.6;
+    min-height: 28px;
       width: 100%; font-family: inherit; outline: none;
     }
     .field-input::placeholder { color: #000000; font-style: italic; }
@@ -517,7 +519,9 @@
         transform: none !important;
         position: static !important;
       }
-      .desc-input, .num-input, .field-input { border: none !important; outline: none !important; background: transparent !important; -webkit-appearance: none; appearance: none; box-shadow: none !important; }
+      .desc-input, .num-input, .field-input { border: none !important; outline: none !important;line-height: 1.4 !important;
+padding-top: 5px !important;
+padding-bottom: 6px !important; background: transparent !important; -webkit-appearance: none; appearance: none; box-shadow: none !important; }
       textarea.desc-input { display: none !important; }
       .desc-print { display: block !important; }
       .qty-main { display: none !important; }
@@ -637,10 +641,10 @@
     <!-- Header -->
     <div class="header">
       <div class="brand-left">
-        <img class="EP" src="demo.jpg" placeholder="COMPANY LOGO" height="85px" width="60px" alt="">
+        <img id="companyLogo" class="EP" src="image-demo.jpg" placeholder="COMPANY LOGO" height="85px" width="60px" alt="">
         <div>
-          <div class="brand-name">COMPANY NAME</div>
-          <div class="brand-sub">
+          <div class="brand-name" id="companyName">COMPANY NAME</div>
+          <div class="brand-sub" id="companyDetails">
             ADDRESS LINE 1<br>
             ADDRESS LINE 2<br>
             97838 14926 &nbsp;·&nbsp; companyname@gmail.com
@@ -716,7 +720,7 @@
         <div class="sig-block">
           <div class="sig-label">Authorised signature</div>
           <div class="sig-upload" id="sigUpload">
-            <img class="sig-preview" id="sigPreview" src="image.avif" alt="Authorised signature">
+            <img class="sig-preview sigPreview" id="companySignature" src="image.avif" alt="Authorised signature">
           </div>
         </div>
       </div>
@@ -784,7 +788,7 @@
         const pageHeightPx = A4_H * pxPerMm;
 
         const canvas = await html2canvas(doc, {
-          scale: 3,
+          scale: 4,
           useCORS: true,
           allowTaint: true,
           backgroundColor: '#ffffff',
@@ -931,30 +935,115 @@
     // 4. Use the SAME config in both EP.html and zivo.html — they save to separate collections
     //    ("ep_quotations" / "zivo_quotations") inside the one project, so nothing overlaps.
     // ══════════════════════════════════════════════════════════
-    //const firebaseConfig = {
-    //  apiKey: "AIzaSyAgZu4-Qy18IJA0tzsmbm-3DLeGpwjWCP0",
-     // authDomain: "quotation-generator-2daab.firebaseapp.com",
-    //  projectId: "quotation-generator-2daab",
-    //  storageBucket: "quotation-generator-2daab.firebasestorage.app",
-     // messagingSenderId: "942254535869",
-     // appId: "1:942254535869:web:b62bdf96cb921e4da133d4"
-   // };
+    const firebaseConfig = {
+  apiKey: "AIzaSyA99TW8GEv_GnDU4ub2k1WwTUjvo_gejIg",
+  authDomain: "quotation-saas-d03b0.firebaseapp.com",
+  projectId: "quotation-saas-d03b0",
+  storageBucket: "quotation-saas-d03b0.firebasestorage.app",
+  messagingSenderId: "447434004275",
+  appId: "1:447434004275:web:ce709f8e9870052d031046"
+};
     const COLLECTION = 'ep_quotations';
     const COUNTER_ID = 'ep_counter';
 
     let db = null;
-    let firebaseReady = false;
-    try {
-      firebase.initializeApp(firebaseConfig);
-      db = firebase.firestore();
-      firebaseReady = true;
-    } catch (e) {
-      console.error('Firebase init failed — check firebaseConfig at the top of the script.', e);
+let auth = null;
+let firebaseReady = false;
+
+try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    auth = firebase.auth();
+    auth.onAuthStateChanged(async (user) => {
+
+    if (!user) {
+        window.location.href = "login.html";
+        return;
     }
+
+    console.log("Logged in:", user.email);
+
+    try {
+
+        const doc = await db.collection("staff_users").doc(user.uid).get();
+
+        if (!doc.exists) {
+            alert("User not found.");
+            auth.signOut();
+            return;
+        }
+
+        const userData = doc.data();
+
+        currentBusinessId = userData.businessId;
+const businessDoc = await db.collection("businesses")
+    .doc(currentBusinessId)
+    .get();
+
+if (!businessDoc.exists) {
+    alert("Business not found.");
+    auth.signOut();
+    return;
+}
+
+currentBusiness = businessDoc.data();
+console.log(document.body.innerHTML.includes("companySignature"));
+const logo = document.getElementById("companyLogo");
+const signature = document.getElementById("companySignature");
+const name = document.getElementById("companyName");
+const details = document.getElementById("companyDetails");
+
+console.log("logo:", logo);
+console.log("signature:", signature);
+console.log("name:", name);
+console.log("details:", details);
+
+if (logo) {
+    logo.src = currentBusiness.logo || "image-demo.jpg";
+}
+
+if (signature) {
+    signature.src = currentBusiness.signature || "image.avif";
+}
+
+if (name) {
+    name.textContent = currentBusiness.companyName || "";
+}
+
+if (details) {
+    details.innerHTML = `
+        ${currentBusiness.address1 || ""}<br>
+        ${currentBusiness.address2 || ""}<br>
+        ${currentBusiness.phone || ""}&nbsp;&nbsp;&nbsp;
+        ${currentBusiness.email || ""}
+    `;
+}
+document.getElementById("companyName").textContent =
+    currentBusiness.companyName || "";
+
+document.getElementById("companyDetails").innerHTML = `
+    ${currentBusiness.address1 || ""}<br>
+    ${currentBusiness.address2 || ""}<br>
+    ${currentBusiness.phone || ""}&nbsp;&nbsp;&nbsp;
+    ${currentBusiness.email || ""}
+`;
+        console.log("Business:", currentBusinessId);
+
+    } catch (e) {
+    console.error(e);
+    alert(e.message);
+}
+});
+    firebaseReady = true;
+} catch (e) {
+    console.error('Firebase init failed – check firebaseConfig at the top of the script.', e);
+}
 
     // ── State ──
     let products = [];
     let nextId = 1;
+    let currentBusinessId = null;
+    let currentBusiness = null;
     const GST_RATE = 0.18;
     let gstEnabled = false;
     let currentDocId = null;
@@ -1009,11 +1098,11 @@
     // locked: cannot be toggled off; isAmount: drives totals
     let columns = [
       { id: 'image',   label: 'Image',       visible: true,  locked: false, width: '112px', align: 'center' },
-      { id: 'desc',    label: 'Description', visible: true,  locked: true,  width: '220px', align: 'left'   },
+      { id: 'desc',    label: 'Description', visible: true,  locked: true,  width: '200px', align: 'left'   },
       { id: 'warranty',label: 'Warranty',    visible: true,  locked: false, width: '80px',  align: 'center' },
       { id: 'qty',     label: 'Qty',         visible: true,  locked: false, width: '52px',  align: 'center' },
-      { id: 'rate',    label: 'Rate (₹)',    visible: true,  locked: false, width: '55px',  align: 'center' },
-      { id: 'dis',     label: 'Dis %',       visible: true,  locked: false, width: '44px',  align: 'center' },
+      { id: 'rate',    label: 'Rate (₹)',    visible: true,  locked: false, width: '62px',  align: 'center' },
+      { id: 'dis',     label: 'Dis %',       visible: true,  locked: false, width: '50px',  align: 'center' },
       { id: 'amount',  label: 'Amount (₹)',  visible: true,  locked: true,  width: '78px',  align: 'center', isAmount: true },
     ];
     // action column (delete button) is always appended, not in columns[]
@@ -1583,6 +1672,7 @@
         const last3 = quotNum.slice(-3);
         const party = getPartyFields();
         const data = {
+            businessId: currentBusinessId,
           quotNum,
           quotDate: document.getElementById('quotDate').textContent.trim(),
           last3,
@@ -1707,7 +1797,11 @@
       document.getElementById('searchInput').value = '';
       const results = document.getElementById('searchResults');
       results.innerHTML = '<div style="font-size:12px;color:#888780;">Loading…</div>';
-      db.collection(COLLECTION).orderBy('updatedAt', 'desc').limit(300).get()
+      db.collection(COLLECTION)
+  .where("businessId", "==", currentBusinessId)
+  .orderBy("updatedAt", "desc")
+  .limit(300)
+  .get()
         .then(snap => {
           allQuotationsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
           renderSearchResults('');
