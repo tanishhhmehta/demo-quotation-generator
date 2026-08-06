@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ELEVEN PEARL — Quotation</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    .zivo { margin-top: 4px; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: #e8e6e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px;
+    }
+
+    /* ── Mobile scaling ── */
+    @media (max-width: 840px) {
+      body { padding: 8px 0 28px; background: #e8e6e0; align-items: flex-start; }
+
+      .toolbar {
+        max-width: 100%;
+        padding: 0 10px 8px;
+        justify-content: flex-start;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        gap: 6px;
+        scrollbar-width: none;
+      }
+      .toolbar::-webkit-scrollbar { display: none; }
+      .toolbar button {
+        flex-shrink: 0;
+        padding: 9px 13px;
+        font-size: 12.5px;
+        min-height: 36px;
+      }
+      .save-status { min-width: auto; }
+      .autosave-toggle { flex-shrink: 0; }
+
+      .doc-scaler {
+        width: 100%;
+        overflow: hidden;
+        padding-bottom: 0;
+        display: flex;
+        justify-content: center;
+      }
+      .doc-scale-wrap {
+        position: relative;
+        margin: 0 auto;
+      }
+      .doc {
+        min-width: 0;
+        width: 794px;
+        margin: 0;
+        transform-origin: top left;
+        border-radius: 8px;
+      }
+
+      /* Resize handles are unreliable at scaled touch coordinates — hide on mobile */
+      .col-resize-handle, .row-resize-handle { display: none !important; }
+
+      /* Responsive modal panels */
+      .col-manager-panel { width: 92vw !important; max-width: 380px; padding: 20px; }
+    }
+
+    @media (max-width: 480px) {
+      .toolbar button svg { margin-right: 3px; width: 13px; height: 13px; }
+    }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      width: 100%;
+      max-width: 794px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .toolbar button {
+      font-size: 13px;
+      padding: 7px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    .btn-ghost {
+      background: transparent;
+      border: 0.5px solid #B4B2A9;
+      color: #000000;
+    }
+    .btn-ghost:hover { background: #D3D1C7; }
+    .btn-solid {
+      background: #444441;
+      border: none;
+      color: #F1EFE8;
+    }
+    .btn-solid:hover { background: #2C2C2A; }
+    .save-status {
+      font-size: 11px;
+      color: #888780;
+      align-self: center;
+      margin-right: auto;
+      min-width: 70px;
+      transition: color 0.2s;
+    }
+    .save-status.saving { color: #B4842E; }
+    .save-status.saved { color: #3C8A4B; }
+    .save-status.error { color: #C0392B; }
+    .autosave-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      margin-right: 4px;
+    }
+    .autosave-toggle-label {
+      font-size: 12px;
+      color: #444441;
+      user-select: none;
+    }
+
+    /* ── Load Quotation results ── */
+    .search-result-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #F1EFE8;
+      border-radius: 7px;
+      padding: 9px 12px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .search-result-item:hover { background: #e5e3dc; }
+    .search-result-name { font-size: 13px; color: #000; font-weight: 600; }
+    .search-result-meta { font-size: 11px; color: #888780; margin-top: 2px; }
+    .search-result-total { font-size: 12px; color: #000; font-weight: 600; white-space: nowrap; margin-left: 12px; }
+
+    /* ── Column Manager Panel ── */
+    .col-manager-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.25);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .col-manager-overlay.open { display: flex; }
+    .col-manager-panel {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      width: 360px;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    }
+    .col-manager-panel h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #000;
+      margin-bottom: 4px;
+      letter-spacing: 0.04em;
+    }
+    .col-manager-panel p.hint {
+      font-size: 11px;
+      color: #888780;
+      margin-bottom: 16px;
+    }
+    .col-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+    .col-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #F1EFE8;
+      border-radius: 7px;
+      padding: 8px 10px;
+      cursor: grab;
+      user-select: none;
+      border: 1px solid transparent;
+      transition: border-color 0.1s, background 0.1s;
+    }
+    .col-item.locked { opacity: 0.5; cursor: not-allowed; }
+    .col-item.dragging { opacity: 0.4; }
+    .col-item.drag-over { border-color: #444441; background: #e5e3dc; }
+    .col-drag-handle {
+      color: #B4B2A9;
+      font-size: 14px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .col-item-name {
+      flex: 1;
+      font-size: 13px;
+      color: #000;
+    }
+    .col-toggle {
+      position: relative;
+      width: 32px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+    .col-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .col-toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: #D3D1C7;
+      border-radius: 18px;
+      transition: background 0.2s;
+      cursor: pointer;
+    }
+    .col-toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 12px; height: 12px;
+      left: 3px; top: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .col-toggle input:checked + .col-toggle-slider { background: #444441; }
+    .col-toggle input:checked + .col-toggle-slider::before { transform: translateX(14px); }
+
+    .col-add-section { border-top: 0.5px solid #D3D1C7; padding-top: 14px; margin-top: 4px; }
+    .col-add-section label { font-size: 11px; font-weight: 600; color: #000; text-transform: uppercase; letter-spacing: 0.08em; display: block; margin-bottom: 6px; }
+    .col-add-row { display: flex; gap: 6px; }
+    .col-add-input {
+      flex: 1;
+      font-size: 13px;
+      font-family: inherit;
+      border: 0.5px solid #B4B2A9;
+      border-radius: 6px;
+      padding: 6px 10px;
+      outline: none;
+      background: #F1EFE8;
+      color: #000;
+    }
+    .col-add-input:focus { border-color: #444441; }
+    .col-add-btn {
+      background: #444441;
+      border: none;
+      color: #F1EFE8;
+      font-size: 13px;
+      font-family: inherit;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .col-add-btn:hover { background: #2C2C2A; }
+
+    .col-manager-footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 18px;
+    }
+    .col-done-btn {
+      background: #444441;
+      color: #F1EFE8;
+      border: none;
+      font-family: inherit;
+      font-size: 13px;
+      padding: 8px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .col-done-btn:hover { background: #2C2C2A; }
+
+    /* ── Document — A4 size ── */
+    .doc {
+      background: #fff;
+      border: 0.5px solid #D3D1C7;
+      border-radius: 12px;
+      overflow: hidden;
+      width: 794px;
+      min-height: 1123px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Logo + Header ── */
+    .header {
+      padding: 24px 38px 20px 28px;
+      border-bottom: 0.5px solid #D3D1C7;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .brand-left { display: flex; align-items: left; gap: 16px; }
+    .logo-wrap {
+      width: 64px; height: 64px;
+      border: none; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden; cursor: pointer; position: relative;
+      background: transparent; flex-shrink: 0;
+    }
+    .logo-wrap input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .logo-wrap img { width: 100%; height: 100%; object-fit: contain; display: none; }
+    .logo-wrap svg { width: 22px; height: 22px; stroke: #B4B2A9; fill: none; }
+    .logo-placeholder { font-size: 9px; color: #000000; text-align: center; pointer-events: none; }
+    .brand-name { font-size: 20px; font-weight: 600; color: #000000; letter-spacing: 0.06em; }
+    .brand-sub { font-size: 11px; color: #000000; margin-top: 4px; line-height: 1.8; }
+    .doc-meta { text-align: right; }
+    .doc-label { font-size: 10px; font-weight: 600; letter-spacing: 0.1em; color: #000000; text-transform: uppercase; margin-bottom: 4px; }
+    .doc-number { font-size: 18px; font-weight: 600; color: #000000; }
+    .doc-date { font-size: 12px; color: #000000; margin-top: 2px; }
+
+    /* ── Party row ── */
+    .party-row {
+      padding: 18px 16px 26px;
+      background: #F1EFE8;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      border-bottom: 0.5px solid #D3D1C7;
+    }
+    .field-group { display: flex; flex-direction: column; gap: 10px; }
+    .field-group.right { text-align: right; }
+    .field-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; color: #000000; text-transform: uppercase; margin-bottom: 3px; }
+    .field-input {
+      font-size: 14px; color: #000000;
+      border: none; border-bottom: 0.5px solid #B4B2A9;
+      background: transparent; padding: 3px 0 4px;
+      width: 100%; font-family: inherit; outline: none;
+    }
+    .field-input::placeholder { color: #000000; font-style: italic; }
+    .field-input:focus { border-bottom-color: #000000; }
+    .field-group.right .field-input { text-align: right; }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; margin-top: 16px; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    thead th {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+      color: #000000; text-transform: uppercase; padding: 10px 10px;
+      text-align: left; background: #F1EFE8; border-bottom: 0.5px solid #D3D1C7;
+      position: relative; user-select: none;
+    }
+    thead th.num { text-align: right; }
+    tbody tr { transition: background 0.1s; }
+    tbody tr:hover td { background: #fafaf8; }
+    tbody td { font-size: 14px; color: #000000; padding: 10px 10px; border-bottom: 0.5px solid #D3D1C7; vertical-align: top; position: relative; overflow: hidden; }
+    tbody tr { max-height: none; }
+    tbody td.num { text-align: right; color: #000000; }
+    tbody td.qty-center { text-align: center; color: #000000; }
+    tbody td.muted { color: #000000; font-size: 13px; }
+
+    /* Column resize handle */
+    .col-resize-handle {
+      position: absolute;
+      top: 0; right: -4px;
+      width: 12px; height: 100%;
+      cursor: col-resize;
+      z-index: 10;
+      background: transparent;
+      transition: background 0.15s;
+      touch-action: none;
+    }
+    .col-resize-handle:hover, .col-resize-handle.resizing { background: rgba(68,68,65,0.25); }
+
+    /* Row resize handle */
+    .row-resize-handle {
+      position: absolute;
+      bottom: -4px; left: 0;
+      width: 100%; height: 12px;
+      cursor: row-resize;
+      z-index: 10;
+      background: transparent;
+      transition: background 0.15s;
+      touch-action: none;
+    }
+    .row-resize-handle:hover, .row-resize-handle.resizing { background: rgba(68,68,65,0.2); }
+
+    @media print {
+      .col-resize-handle, .row-resize-handle { display: none !important; }
+    }
+
+    .img-cell {
+      width: 100%; height: 78px; background: transparent; border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      overflow: visible; cursor: pointer; border: none; position: relative;
+    }
+    .img-cell input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; z-index: 1; }
+    .img-cell img { max-width: 100%; max-height: 78px; width: auto; height: auto; object-fit: contain; object-position: center center; display: none; background: transparent; border-radius: 4px; margin: auto; }
+    td:has(.img-cell) { text-align: center; }
+    .img-cell .upload-icon { width: 18px; height: 18px; stroke: #B4B2A9; fill: none; display: none; }
+    .img-remove-btn {
+      display: none;
+      position: absolute;
+      top: -7px; right: -7px;
+      width: 20px; height: 20px;
+      background: #444441;
+      border: none; border-radius: 50%;
+      color: #fff; font-size: 13px; line-height: 1;
+      cursor: pointer; align-items: center; justify-content: center;
+      z-index: 2; padding: 0;
+    }
+    .img-cell:hover .img-remove-btn { display: flex; }
+    .img-cell .img-remove-btn:hover { background: #000; }
+    @media print {
+      .img-remove-btn { display: none !important; }
+    }
+
+    .desc-input {
+      font-size: 14px; color: #000000; border: none; background: transparent;
+      padding: 2px 0; width: 100%; font-family: inherit; outline: none;
+      resize: none; overflow: hidden; min-height: 22px; line-height: 1.5; display: block;
+    }
+    .desc-input::placeholder { color: #000000; font-style: italic; }
+    .desc-input:focus { border-bottom: 0.5px solid #B4B2A9; }
+    .desc-print { display: none; font-size: 14px; color: #000000; font-family: inherit; line-height: 1.5; white-space: pre-wrap; word-break: break-word; padding: 2px 0; }
+    .num-input {
+      font-size: 14px; color: #000000; border: none; background: transparent;
+      padding: 2px 0; width: 100%; text-align: right; font-family: inherit; outline: none;
+    }
+    .num-input.center { text-align: center !important; display: block; margin: 0 auto; }
+    .num-input:focus { border-bottom: 0.5px solid #B4B2A9; }
+
+    .qty-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+    .qty-main { display: flex; justify-content: flex-end; align-items: center; gap: 5px; }
+    .unit-select, .custom-unit-input {
+      font-size: 11px; color: #000000;
+      border: none; border-bottom: 0.5px solid #D3D1C7;
+      background: transparent; font-family: inherit; outline: none;
+    }
+    .unit-select { width: 54px; }
+    .custom-unit-input { width: 72px; text-align: right; padding: 2px 0; }
+    .qty-print-text { display: none; }
+
+    .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; background: #D3D1C7; color: #000000; margin-bottom: 3px; }
+    .remove-btn { background: none; border: none; cursor: pointer; color: #000000; font-size: 16px; padding: 0 4px; line-height: 1; transition: color 0.15s; }
+    .remove-btn:hover { color: #000000; }
+    .add-row td { background: #F1EFE8; text-align: center; padding: 10px; }
+    .add-row button { background: none; border: none; font-size: 12px; color: #000000; font-style: italic; cursor: pointer; font-family: inherit; }
+    .add-row button:hover { color: #000000; }
+
+    /* ── Footer ── */
+    .footer-section {
+      padding: 24px 36px; margin-top: auto;
+      display: flex; justify-content: space-between; align-items: flex-end;
+      gap: 32px; border-bottom: 0.5px solid #D3D1C7;
+    }
+    .notes-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; color: #000000; text-transform: uppercase; margin-bottom: 6px; }
+    .notes-list { font-size: 12px; color: #000000; line-height: 1.9; }
+    .notes-list span { display: block; }
+    .totals { text-align: right; min-width: 210px; flex-shrink: 0; }
+    .total-line { display: flex; justify-content: space-between; gap: 32px; font-size: 13px; color: #000000; margin-bottom: 6px; }
+    .total-final { display: flex; justify-content: space-between; gap: 32px; font-size: 16px; font-weight: 600; color: #000000; padding-top: 8px; border-top: 0.5px solid #888780; margin-top: 4px; }
+
+    .gst-toggle-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; justify-content: flex-end; }
+    .gst-toggle-row label { font-size: 12px; color: #000000; cursor: pointer; user-select: none; }
+    .toggle-switch { position: relative; width: 36px; height: 20px; cursor: pointer; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: #D3D1C7; border-radius: 20px; transition: background 0.2s; }
+    .toggle-slider::before { content: ''; position: absolute; width: 14px; height: 14px; left: 3px; top: 3px; background: white; border-radius: 50%; transition: transform 0.2s; }
+    .toggle-switch input:checked + .toggle-slider { background: #444441; }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(16px); }
+
+    /* ── Signature ── */
+    .sig-section { padding: 20px 36px 24px; display: flex; justify-content: flex-end; border-bottom: 0.5px solid #D3D1C7; }
+    .sig-block { width: 240px; min-width: 240px; margin-left: auto; }
+    .sig-label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; color: #000000; text-transform: uppercase; margin-bottom: 8px; text-align: right; }
+    .sig-upload { border: none; border-radius: 0; padding: 0; text-align: center; position: relative; min-height: 80px; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; }
+    .sig-upload input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .sig-upload svg { width: 22px; height: 22px; stroke: #888780; fill: none; }
+    .sig-upload p { font-size: 12px; color: #000000; }
+    .sig-upload small { font-size: 11px; color: #000000; }
+    .sig-preview { display: block; max-height: 90px; max-width: 100%; object-fit: contain; margin-left: auto; margin-right: 0; }
+
+    .actions { padding: 16px 36px; display: flex; justify-content: flex-end; gap: 8px; }
+
+    /* ── Print styles ── */
+    @media print {
+      @page { size: A4 portrait; margin: 0; }
+      .doc { padding: 12mm 14mm !important; }
+
+      html, body {
+        width: 210mm;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      body { background: white; padding: 0; margin: 0; }
+      .toolbar, .remove-btn, .add-row, .actions, .logo-wrap input, .sig-upload input,
+      .img-cell input, .gst-toggle-row, .col-manager-overlay, .col-resize-handle, .row-resize-handle, .note-del-btn, .save-status { display: none !important; }
+      .note-input { border: none !important; background: transparent !important; pointer-events: none; }
+      .note-add-btn { display: none !important; }
+      /* Valid date: hide input, show text on print */
+      #validDate { display: none !important; }
+      #validDateDisplay { display: block !important; }
+      .doc-scaler {
+        width: 100% !important;
+        overflow: visible !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      .doc {
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        height: auto !important;
+        overflow: visible !important;
+        margin: 0 !important;
+        transform: none !important;
+        position: static !important;
+      }
+      .desc-input, .num-input, .field-input { border: none !important; outline: none !important; background: transparent !important; -webkit-appearance: none; appearance: none; box-shadow: none !important; }
+      textarea.desc-input { display: none !important; }
+      .desc-print { display: block !important; }
+      .qty-main { display: none !important; }
+      .custom-unit-input { display: none !important; }
+      .qty-print-text { display: inline !important; color: #000000; white-space: nowrap; font-size: 14px; }
+      /* Image fix for mobile print */
+      .img-cell { overflow: hidden !important; }
+      .img-cell img { display: block !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      /* Date input fix */
+      input[type="date"] { -webkit-appearance: none; appearance: none; }
+      input[type="date"]::-webkit-date-and-time-value { text-align: right; }
+      table { page-break-inside: auto; width: 100%; }
+      thead { display: table-header-group; }
+      tr { page-break-inside: avoid; page-break-after: auto; }
+      td, th { overflow: hidden; }
+      .footer-section { page-break-inside: avoid; break-inside: avoid; }
+      .sig-section { page-break-inside: avoid; break-inside: avoid; }
+      .doc-end-block { page-break-inside: avoid; break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PDF Name Modal -->
+  <div class="col-manager-overlay" id="pdfNameOverlay">
+    <div class="col-manager-panel" style="width:320px;">
+      <h3 style="margin-bottom:6px;">Name your PDF</h3>
+      <p class="hint" style="margin-bottom:14px;">This will be the filename when you save or share.</p>
+      <input id="pdfNameInput" class="col-add-input" type="text" style="width:100%;margin-bottom:16px;"
+        placeholder="Quotation name…"
+        onkeydown="if(event.key==='Enter') confirmPrint()">
+      <div id="pdfProgress" style="display:none;margin-bottom:14px;">
+        <div style="font-size:12px;color:#888780;margin-bottom:6px;" id="pdfProgressLabel">Generating PDF…</div>
+        <div style="background:#E8E6E0;border-radius:4px;height:4px;overflow:hidden;">
+          <div id="pdfProgressBar" style="height:100%;width:0%;background:#444441;border-radius:4px;transition:width 0.3s;"></div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;" id="pdfModalBtns">
+        <button class="btn-ghost" style="font-size:13px;padding:7px 16px;border-radius:8px;cursor:pointer;font-family:inherit;" onclick="cancelPrint()">Cancel</button>
+        <button class="col-done-btn" id="savePdfBtn" onclick="confirmPrint()">Save PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Column Manager Overlay -->
+  <div class="col-manager-overlay" id="colManagerOverlay">
+    <div class="col-manager-panel">
+      <h3>Manage Columns</h3>
+      <p class="hint">Toggle columns on/off, drag to reorder, or add custom columns.</p>
+      <div class="col-list" id="colList"></div>
+      <div class="col-add-section">
+        <label>Add Custom Column</label>
+        <div class="col-add-row">
+          <input class="col-add-input" type="text" id="newColName" placeholder="Column name…" maxlength="30">
+          <button class="col-add-btn" onclick="addCustomColumn()">Add</button>
+        </div>
+      </div>
+      <div class="col-manager-footer">
+        <button class="col-done-btn" onclick="closeColManager()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load Quotation Overlay -->
+  <div class="col-manager-overlay" id="loadOverlay">
+    <div class="col-manager-panel" style="width:420px;">
+      <h3>Load Quotation</h3>
+      <p class="hint">Search by party name or last 3 digits of the quotation number.</p>
+      <input id="searchInput" class="col-add-input" type="text" style="width:100%;margin-bottom:14px;"
+        placeholder="e.g. Sharma Traders or 007" oninput="handleSearchInput()">
+      <div id="searchResults" style="display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto;margin-bottom:4px;"></div>
+      <div class="col-manager-footer">
+        <button class="col-done-btn" onclick="closeLoadOverlay()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <span class="save-status" id="saveStatus"></span>
+    <label class="autosave-toggle" title="When off, nothing is saved until you press Save">
+      <span class="autosave-toggle-label">Autosave</span>
+      <span class="col-toggle">
+        <input type="checkbox" id="autosaveToggle" onchange="setAutosaveEnabled(this.checked)">
+        <span class="col-toggle-slider"></span>
+      </span>
+    </label>
+    <button class="btn-ghost" onclick="manualSave()">
+      <svg style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;stroke:currentColor;fill:none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 21v-8H7v8M7 3v5h8M5 3h11l4 4v11a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
+      Save
+    </button>
+    <button class="btn-ghost" onclick="startNewQuotation()">
+      <svg style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;stroke:currentColor;fill:none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/></svg>
+      New
+    </button>
+    <button class="btn-ghost" onclick="openLoadOverlay()">
+      <svg style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;stroke:currentColor;fill:none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-4.35-4.35M17 10a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      Load
+    </button>
+    <button class="btn-ghost" onclick="openColManager()">
+      <svg style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;stroke:currentColor;fill:none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2v-4M9 21H5a2 2 0 01-2-2v-4m0 0h18"/></svg>
+      Columns
+    </button>
+    <button class="btn-ghost" onclick="window.print()">
+      <svg style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;stroke:currentColor;fill:none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 8V5a1 1 0 011-1h8a1 1 0 011 1v3M5 12h14M8 16h.01M16 16h.01"/></svg>
+      Print
+    </button>
+    <button class="btn-solid" onclick="savePDF()">
+      <svg style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;stroke:currentColor;fill:none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v12m-4-4l4 4 4-4"/></svg>
+      Save PDF
+    </button>
+  </div>
+
+  <div class="doc-scaler">
+  <div class="doc-scale-wrap" id="docScaleWrap">
+  <div class="doc" id="quotation">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="brand-left">
+        <img class="EP" src="demo.jpg" placeholder="COMPANY LOGO" height="85px" width="60px" alt="">
+        <div>
+          <div class="brand-name">COMPANY NAME</div>
+          <div class="brand-sub">
+            ADDRESS LINE 1<br>
+            ADDRESS LINE 2<br>
+            97838 14926 &nbsp;·&nbsp; companyname@gmail.com
+          </div>
+        </div>
+      </div>
+      <div class="doc-meta">
+        <div class="doc-label">Quotation</div>
+        <div class="doc-number" id="quotNum">#QT-2026-001</div>
+        <div class="doc-date" id="quotDate"></div>
+      </div>
+    </div>
+
+    <!-- Party Details -->
+    <div class="party-row">
+      <div class="field-group">
+        <div>
+          <div class="field-label">Party name</div>
+          <input class="field-input" type="text" id="partyNameInput" placeholder="Enter party name" oninput="scheduleSave()">
+        </div>
+        <div>
+          <div class="field-label">Address</div>
+          <input class="field-input" type="text" id="partyAddressInput" placeholder="Enter address" oninput="scheduleSave()">
+        </div>
+      </div>
+      <div class="field-group right">
+        <div>
+          <div class="field-label">Phone</div>
+          <input class="field-input" type="text" id="partyPhoneInput" placeholder="Phone number" oninput="scheduleSave()">
+        </div>
+        <div>
+          <div class="field-label">Valid until</div>
+          <input class="field-input" type="date" id="validDate" oninput="updateValidDateDisplay(this.value); scheduleSave()">
+          <div class="field-input date-print-text" id="validDateDisplay" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Products Table -->
+    <div class="table-wrap">
+      <table>
+        <thead><tr id="tableHead"></tr></thead>
+        <tbody id="productBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Footer -->
+    <div class="doc-end-block">
+      <div class="footer-section">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <div class="notes-label" style="margin-bottom:0">Notes</div>
+            <button onclick="addNote()" class="note-add-btn" style="background:none;border:none;cursor:pointer;font-size:13px;color:#888780;font-family:inherit;padding:0;line-height:1;" title="Add note">+ add</button>
+          </div>
+          <div class="notes-list" id="notesList"></div>
+        </div>
+        <div class="totals">
+          <div class="gst-toggle-row">
+            <label for="gstToggle">Include GST (18%)</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="gstToggle" onchange="toggleGST()">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="total-line"><span>Subtotal</span><span id="subtotal">₹0.00</span></div>
+          <div class="total-line" id="gstRow" style="display:none"><span>GST (18%)</span><span id="gstAmt">₹0.00</span></div>
+          <div class="total-final"><span>Total</span><span id="grandTotal">₹0.00</span></div>
+        </div>
+      </div>
+
+      <!-- Signature -->
+      <div class="sig-section">
+        <div class="sig-block">
+          <div class="sig-label">Authorised signature</div>
+          <div class="sig-upload" id="sigUpload">
+            <img class="sig-preview" id="sigPreview" src="image.avif" alt="Authorised signature">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div><!-- /.doc-scale-wrap -->
+  </div><!-- /.doc-scaler -->
+
+  <script>
+    // ── Save PDF via jsPDF + html2canvas (no browser print dialog) ──
+    function savePDF() {
+      const quotNum = document.getElementById('quotNum').textContent.trim();
+      const last3 = quotNum.slice(-3);
+      const partyName = document.querySelector('.party-row .field-input').value.trim() || 'Party';
+      const suggested = `Quotation ${last3}, ${partyName}`;
+      document.getElementById('pdfNameInput').value = suggested;
+      document.getElementById('pdfProgress').style.display = 'none';
+      document.getElementById('pdfProgressBar').style.width = '0%';
+      document.getElementById('pdfModalBtns').style.display = 'flex';
+      document.getElementById('pdfNameOverlay').classList.add('open');
+    }
+
+    async function confirmPrint() {
+      const name = document.getElementById('pdfNameInput').value.trim() || 'Quotation';
+
+      // Show progress, hide buttons
+      document.getElementById('pdfModalBtns').style.display = 'none';
+      document.getElementById('pdfProgress').style.display = 'block';
+      document.getElementById('pdfProgressLabel').textContent = 'Preparing document…';
+      document.getElementById('pdfProgressBar').style.width = '10%';
+
+      // Hide UI-only elements before capture
+      const uiHide = document.querySelectorAll('.toolbar, .remove-btn, .add-row, .actions, .gst-toggle-row, .col-resize-handle, .row-resize-handle, .note-del-btn, .note-add-btn');
+      uiHide.forEach(el => el.style.visibility = 'hidden');
+      const validInput = document.getElementById('validDate');
+      if (validInput) validInput.style.display = 'none';
+
+      // Temporarily reset mobile scaling so the capture is full-resolution
+      const docEl = document.getElementById('quotation');
+      const prevTransform = docEl.style.transform;
+      const prevPosition = docEl.style.position;
+      docEl.style.transform = 'none';
+      docEl.style.position = 'static';
+
+      // Show print-only elements
+      document.querySelectorAll('.desc-print').forEach(el => el.style.display = 'block');
+      document.querySelectorAll('textarea.desc-input').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('.qty-main').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('.qty-print-text').forEach(el => el.style.display = 'inline');
+      const validDisplay = document.getElementById('validDateDisplay');
+      if (validDisplay) validDisplay.style.display = 'block';
+
+      try {
+        document.getElementById('pdfProgressLabel').textContent = 'Rendering…';
+        document.getElementById('pdfProgressBar').style.width = '30%';
+
+        const doc = document.getElementById('quotation');
+        const docWidth = doc.offsetWidth;
+        const docHeight = doc.scrollHeight;
+
+        // A4 dimensions in mm
+        const A4_W = 210, A4_H = 297;
+        // Scale so doc fits A4 width (at 96dpi → mm: 1px = 0.2646mm)
+        const pxPerMm = docWidth / A4_W;
+        const pageHeightPx = A4_H * pxPerMm;
+
+        const canvas = await html2canvas(doc, {
+          scale: 3,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          scrollX: 0,
+          scrollY: -window.scrollY,
+          width: docWidth,
+          height: docHeight,
+          onclone: (clonedDoc) => {
+            const clonedEl = clonedDoc.getElementById('quotation');
+            if (clonedEl) {
+              clonedEl.style.borderRadius = '0';
+              clonedEl.style.border = 'none';
+              clonedEl.style.boxShadow = 'none';
+            }
+          }
+        });
+
+        document.getElementById('pdfProgressBar').style.width = '75%';
+        document.getElementById('pdfProgressLabel').textContent = 'Building PDF…';
+
+        const { jsPDF } = window.jspdf;
+        const imgData = canvas.toDataURL('image/jpeg', 0.97);
+        const imgWidthMm = A4_W;
+        const imgHeightMm = (canvas.height / canvas.width) * A4_W;
+
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+        let yOffset = 0;
+        let remainingHeight = imgHeightMm;
+        let pageNum = 0;
+
+        while (remainingHeight > 0) {
+          if (pageNum > 0) pdf.addPage();
+          const sliceHeightMm = Math.min(A4_H, remainingHeight);
+          const sliceHeightPx = (sliceHeightMm / imgHeightMm) * canvas.height;
+          const sliceYPx = (yOffset / imgHeightMm) * canvas.height;
+
+          // Crop canvas slice for this page
+          const pageCanvas = document.createElement('canvas');
+          pageCanvas.width = canvas.width;
+          pageCanvas.height = Math.ceil(sliceHeightPx);
+          const ctx = pageCanvas.getContext('2d');
+          ctx.drawImage(canvas, 0, -sliceYPx);
+          const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.97);
+
+          pdf.addImage(pageImgData, 'JPEG', 0, 0, imgWidthMm, sliceHeightMm);
+          yOffset += sliceHeightMm;
+          remainingHeight -= A4_H;
+          pageNum++;
+        }
+
+        document.getElementById('pdfProgressBar').style.width = '100%';
+        document.getElementById('pdfProgressLabel').textContent = 'Done!';
+
+        setTimeout(() => {
+          pdf.save(name + '.pdf');
+          document.getElementById('pdfNameOverlay').classList.remove('open');
+        }, 300);
+
+      } catch (err) {
+        alert('PDF generation failed: ' + err.message);
+        document.getElementById('pdfNameOverlay').classList.remove('open');
+      } finally {
+        // Restore UI elements
+        uiHide.forEach(el => el.style.visibility = '');
+        if (validInput) validInput.style.display = '';
+        document.querySelectorAll('.desc-print').forEach(el => el.style.display = '');
+        document.querySelectorAll('textarea.desc-input').forEach(el => el.style.display = '');
+        document.querySelectorAll('.qty-main').forEach(el => el.style.display = '');
+        document.querySelectorAll('.qty-print-text').forEach(el => el.style.display = '');
+        if (validDisplay) validDisplay.style.display = 'none';
+        // Restore mobile scaling
+        docEl.style.transform = prevTransform;
+        docEl.style.position = prevPosition;
+        fitDocToScreen();
+      }
+    }
+
+    function cancelPrint() {
+      document.getElementById('pdfNameOverlay').classList.remove('open');
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // ── Mobile doc scaling — shrink the fixed-width A4 document to
+    //    fit narrow screens instead of forcing horizontal scrolling ──
+    // ══════════════════════════════════════════════════════════
+    const MOBILE_BREAKPOINT = 840;
+    const DOC_WIDTH = 794;
+
+    function fitDocToScreen() {
+      const docEl = document.getElementById('quotation');
+      const wrapEl = document.getElementById('docScaleWrap');
+      if (!docEl || !wrapEl) return;
+
+      if (window.innerWidth > MOBILE_BREAKPOINT) {
+        docEl.style.transform = '';
+        docEl.style.position = '';
+        docEl.style.top = '';
+        docEl.style.left = '';
+        wrapEl.style.width = '';
+        wrapEl.style.height = '';
+        return;
+      }
+
+      const availableWidth = Math.min(window.innerWidth - 16, DOC_WIDTH);
+      const scale = Math.max(0.3, Math.min(1, availableWidth / DOC_WIDTH));
+
+      docEl.style.position = 'absolute';
+      docEl.style.top = '0';
+      docEl.style.left = '0';
+      docEl.style.transform = `scale(${scale})`;
+
+      wrapEl.style.width = (DOC_WIDTH * scale) + 'px';
+      wrapEl.style.height = (docEl.scrollHeight * scale) + 'px';
+    }
+
+    // Re-fit whenever the document's own content height changes (rows added/
+    // removed, notes edited, GST toggled, etc.) — avoids wiring this into
+    // every mutation function individually.
+    let fitScheduled = false;
+    function scheduleFit() {
+      if (fitScheduled) return;
+      fitScheduled = true;
+      requestAnimationFrame(() => { fitScheduled = false; fitDocToScreen(); });
+    }
+
+    window.addEventListener('resize', scheduleFit);
+    window.addEventListener('orientationchange', scheduleFit);
+
+    if (window.ResizeObserver) {
+      const quotObserver = new ResizeObserver(scheduleFit);
+      window.addEventListener('DOMContentLoaded', () => {
+        const el = document.getElementById('quotation');
+        if (el) quotObserver.observe(el);
+      });
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // ── Firebase config ──
+    // 1. Go to https://console.firebase.google.com → create a project (or use an existing one).
+    // 2. Add a Web App to the project, then copy the config object it gives you and paste it below.
+    // 3. In the Firebase console, go to Firestore Database → Create database (start in production
+    //    or test mode, either works to get going).
+    // 4. Use the SAME config in both EP.html and zivo.html — they save to separate collections
+    //    ("ep_quotations" / "zivo_quotations") inside the one project, so nothing overlaps.
+    // ══════════════════════════════════════════════════════════
+    //const firebaseConfig = {
+    //  apiKey: "AIzaSyAgZu4-Qy18IJA0tzsmbm-3DLeGpwjWCP0",
+     // authDomain: "quotation-generator-2daab.firebaseapp.com",
+    //  projectId: "quotation-generator-2daab",
+    //  storageBucket: "quotation-generator-2daab.firebasestorage.app",
+     // messagingSenderId: "942254535869",
+     // appId: "1:942254535869:web:b62bdf96cb921e4da133d4"
+   // };
+    const COLLECTION = 'ep_quotations';
+    const COUNTER_ID = 'ep_counter';
+
+    let db = null;
+    let firebaseReady = false;
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.firestore();
+      firebaseReady = true;
+    } catch (e) {
+      console.error('Firebase init failed — check firebaseConfig at the top of the script.', e);
+    }
+
+    // ── State ──
+    let products = [];
+    let nextId = 1;
+    const GST_RATE = 0.18;
+    let gstEnabled = false;
+    let currentDocId = null;
+    let saveTimer = null;
+    let allQuotationsCache = [];
+
+    // Autosave is OFF by default — nothing gets written to Firestore just from
+    // opening/editing the page. Turning the toggle on remembers your choice
+    // (via localStorage) so you don't have to flip it every time you refresh.
+    let autosaveEnabled = localStorage.getItem('ep_autosaveEnabled') === 'true';
+
+    function setAutosaveEnabled(val) {
+      autosaveEnabled = !!val;
+      localStorage.setItem('ep_autosaveEnabled', autosaveEnabled ? 'true' : 'false');
+      const toggle = document.getElementById('autosaveToggle');
+      if (toggle) toggle.checked = autosaveEnabled;
+      if (autosaveEnabled) {
+        setSaveStatus('Autosave on', 'saved');
+        setTimeout(() => setSaveStatus('', ''), 1500);
+      } else {
+        clearTimeout(saveTimer);
+        setSaveStatus('', '');
+      }
+    }
+
+    // Manual save — works regardless of the autosave toggle, so you can still
+    // save on demand while autosave is off.
+    function manualSave() {
+      if (!firebaseReady) {
+        alert('Firebase is not configured yet. Add your project keys to firebaseConfig at the top of the script to enable saving and loading quotations.');
+        return;
+      }
+      clearTimeout(saveTimer);
+      setSaveStatus('Saving…', 'saving');
+      saveQuotation();
+    }
+
+    const NOTES_WITH_GST = [
+      '1 . Delivery Period 7 to 10 Days',
+      '2 . Transportation Charges Extra',
+      '4 . 100% advance against the PI',
+      '5 . All Rate Are Including Tax'
+    ];
+    const NOTES_WITHOUT_GST = [
+      '1 . Delivery Period 7 to 10 Days',
+      '2 . Transportation Charges Extra',
+      '4 . 100% advance against the PI',
+      '5 . All Rate Are Excluding Tax'
+    ];
+
+    // ── Column definitions ──
+    // locked: cannot be toggled off; isAmount: drives totals
+    let columns = [
+      { id: 'image',   label: 'Image',       visible: true,  locked: false, width: '112px', align: 'center' },
+      { id: 'desc',    label: 'Description', visible: true,  locked: true,  width: '220px', align: 'left'   },
+      { id: 'warranty',label: 'Warranty',    visible: true,  locked: false, width: '80px',  align: 'center' },
+      { id: 'qty',     label: 'Qty',         visible: true,  locked: false, width: '52px',  align: 'center' },
+      { id: 'rate',    label: 'Rate (₹)',    visible: true,  locked: false, width: '55px',  align: 'center' },
+      { id: 'dis',     label: 'Dis %',       visible: true,  locked: false, width: '44px',  align: 'center' },
+      { id: 'amount',  label: 'Amount (₹)',  visible: true,  locked: true,  width: '78px',  align: 'center', isAmount: true },
+    ];
+    // action column (delete button) is always appended, not in columns[]
+    const DEFAULT_COLUMNS = JSON.parse(JSON.stringify(columns));
+
+    // ── Column Manager ──
+    function openColManager() {
+      renderColManager();
+      document.getElementById('colManagerOverlay').classList.add('open');
+    }
+    function closeColManager() {
+      document.getElementById('colManagerOverlay').classList.remove('open');
+      renderTable();
+    }
+
+    function renderColManager() {
+      const list = document.getElementById('colList');
+      list.innerHTML = '';
+      columns.forEach((col, idx) => {
+        const item = document.createElement('div');
+        item.className = 'col-item' + (col.locked ? ' locked' : '');
+        item.dataset.idx = idx;
+        if (!col.locked) {
+          item.draggable = true;
+          item.addEventListener('dragstart', onDragStart);
+          item.addEventListener('dragover', onDragOver);
+          item.addEventListener('drop', onDrop);
+          item.addEventListener('dragend', onDragEnd);
+        }
+        item.innerHTML = `
+          <span class="col-drag-handle">${col.locked ? '⠿' : '⠿'}</span>
+          <span class="col-item-name">${col.label}</span>
+          ${col.locked ? '<span style="font-size:10px;color:#B4B2A9;">required</span>' : `
+          <label class="col-toggle">
+            <input type="checkbox" ${col.visible ? 'checked' : ''} onchange="toggleColVisible(${idx}, this.checked)">
+            <span class="col-toggle-slider"></span>
+          </label>
+          ${col.custom ? `<button onclick="removeCustomColumn(${idx})" style="background:none;border:none;cursor:pointer;color:#B4B2A9;font-size:16px;line-height:1;padding:0 0 0 4px;" title="Delete">×</button>` : ''}
+          `}
+        `;
+        list.appendChild(item);
+      });
+    }
+
+    function toggleColVisible(idx, val) {
+      columns[idx].visible = val;
+      scheduleSave();
+    }
+
+    function addCustomColumn() {
+      const input = document.getElementById('newColName');
+      const name = input.value.trim();
+      if (!name) return;
+      const newCol = {
+        id: 'custom_' + Date.now(),
+        label: name,
+        visible: true,
+        locked: false,
+        width: '80px',
+        align: 'center',
+        custom: true
+      };
+      // Insert before amount column
+      const amtIdx = columns.findIndex(c => c.id === 'amount');
+      columns.splice(amtIdx, 0, newCol);
+      // Add field to all products
+      products.forEach(p => p[newCol.id] = '');
+      input.value = '';
+      renderColManager();
+      scheduleSave();
+    }
+
+    function removeCustomColumn(idx) {
+      const col = columns[idx];
+      columns.splice(idx, 1);
+      products.forEach(p => delete p[col.id]);
+      renderColManager();
+      scheduleSave();
+    }
+
+    // ── Drag to reorder ──
+    let dragSrcIdx = null;
+    function onDragStart(e) {
+      dragSrcIdx = parseInt(e.currentTarget.dataset.idx);
+      e.currentTarget.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    }
+    function onDragOver(e) {
+      e.preventDefault();
+      document.querySelectorAll('.col-item').forEach(el => el.classList.remove('drag-over'));
+      e.currentTarget.classList.add('drag-over');
+    }
+    function onDrop(e) {
+      e.preventDefault();
+      const targetIdx = parseInt(e.currentTarget.dataset.idx);
+      if (dragSrcIdx === null || dragSrcIdx === targetIdx) return;
+      // Prevent dropping locked columns or onto locked columns (except #/desc/amount stay fixed)
+      const src = columns[dragSrcIdx];
+      const tgt = columns[targetIdx];
+      if (src.locked || tgt.locked) return;
+      const moved = columns.splice(dragSrcIdx, 1)[0];
+      columns.splice(targetIdx, 0, moved);
+      renderColManager();
+      scheduleSave();
+    }
+    function onDragEnd(e) {
+      e.currentTarget.classList.remove('dragging');
+      document.querySelectorAll('.col-item').forEach(el => el.classList.remove('drag-over'));
+      dragSrcIdx = null;
+    }
+
+    // ── Row heights store (keyed by product id) ──
+    let rowHeights = {};
+
+    // ── Build table header ──
+    function renderTableHead() {
+      const tr = document.getElementById('tableHead');
+      tr.innerHTML = '';
+      const visibleCols = columns.filter(c => c.visible);
+      visibleCols.forEach((col, colIdx) => {
+        const th = document.createElement('th');
+        if (col.width) th.style.width = col.width;
+        if (col.align) th.style.textAlign = col.align;
+        th.dataset.colId = col.id;
+        th.textContent = col.label;
+
+        // Column resize handle (not on last col or action col)
+        const handle = document.createElement('div');
+        handle.className = 'col-resize-handle';
+        handle.addEventListener('mousedown', (e) => startColResize(e, col, th));
+        handle.addEventListener('touchstart', (e) => startColResize(e, col, th), { passive: false });
+        th.appendChild(handle);
+
+        tr.appendChild(th);
+      });
+      // action column header
+      const thAct = document.createElement('th');
+      thAct.style.width = '28px';
+      tr.appendChild(thAct);
+    }
+
+    // ── Unified pointer helpers (mouse + touch) ──
+    function clientX(e) { return e.touches ? e.touches[0].clientX : e.clientX; }
+    function clientY(e) { return e.touches ? e.touches[0].clientY : e.clientY; }
+
+    function addMoveListeners(onMove, onUp) {
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      document.addEventListener('touchmove', onMove, { passive: false });
+      document.addEventListener('touchend', onUp);
+    }
+    function removeMoveListeners(onMove, onUp) {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+    }
+
+    // ── Column resize ──
+    let colResizeState = null;
+    function startColResize(e, col, th) {
+      e.preventDefault();
+      e.stopPropagation();
+      const startX = clientX(e);
+      const startW = th.offsetWidth;
+      const handle = th.querySelector('.col-resize-handle');
+      handle.classList.add('resizing');
+      document.body.style.cursor = 'col-resize';
+      colResizeState = { col, th, startX, startW, handle };
+
+      function onMove(e) {
+        e.preventDefault();
+        const delta = clientX(e) - colResizeState.startX;
+        const newW = Math.max(40, colResizeState.startW + delta);
+        colResizeState.col.width = newW + 'px';
+        colResizeState.th.style.width = newW + 'px';
+      }
+      function onUp() {
+        colResizeState.handle.classList.remove('resizing');
+        document.body.style.cursor = '';
+        removeMoveListeners(onMove, onUp);
+        colResizeState = null;
+        scheduleSave();
+      }
+      addMoveListeners(onMove, onUp);
+    }
+
+    // ── Row resize ──
+    function applyRowHeight(tr, h) {
+      tr.style.height = h + 'px';
+      tr.querySelectorAll('td').forEach(td => {
+        td.style.height = h + 'px';
+        td.style.maxHeight = h + 'px';
+      });
+    }
+
+    function startRowResize(e, productId, tr) {
+      e.preventDefault();
+      e.stopPropagation();
+      const startY = clientY(e);
+      const startH = tr.offsetHeight;
+      const handle = tr.querySelector('.row-resize-handle');
+      if (handle) handle.classList.add('resizing');
+      document.body.style.cursor = 'row-resize';
+
+      function onMove(e) {
+        e.preventDefault();
+        const delta = clientY(e) - startY;
+        const newH = Math.max(24, startH + delta);
+        rowHeights[productId] = newH;
+        applyRowHeight(tr, newH);
+      }
+      function onUp() {
+        if (handle) handle.classList.remove('resizing');
+        document.body.style.cursor = '';
+        removeMoveListeners(onMove, onUp);
+        scheduleSave();
+      }
+      addMoveListeners(onMove, onUp);
+    }
+
+    // ── Render table ──
+    function renderTable() {
+      renderTableHead();
+      const tbody = document.getElementById('productBody');
+      tbody.innerHTML = '';
+      const visibleCols = columns.filter(c => c.visible);
+
+      products.forEach((p, i) => {
+        const amount = calcAmount(p.qty, p.rate, p.dis);
+        const tr = document.createElement('tr');
+
+        visibleCols.forEach(col => {
+          const td = document.createElement('td');
+          td.style.textAlign = col.align || 'left';
+
+          switch(col.id) {
+            case 'image':
+              td.innerHTML = `
+                <div class="img-cell" id="imgCell${p.id}">
+                  <input type="file" accept="image/*" onchange="handleProductImg(event, ${p.id})" id="imgInput${p.id}">
+                  <img id="prodImg${p.id}" alt="" src="${p.image || ''}" style="display:${p.image ? 'block' : 'none'}">
+                  <button class="img-remove-btn" style="display:${p.image ? 'none' : 'none'}" onclick="removeProductImg(event, ${p.id})" title="Remove image">×</button>
+                </div>`;
+              break;
+
+            case 'desc':
+              td.innerHTML = `
+                <textarea class="desc-input" id="descInput${p.id}" placeholder="Product description" rows="1"
+                  oninput="autoResize(this); updateField(${p.id}, 'desc', this.value)">${p.desc || ''}</textarea>
+                <div class="desc-print" id="descPrint${p.id}">${p.desc || ''}</div>`;
+              break;
+
+            case 'warranty':
+              td.innerHTML = `<input class="desc-input" type="text" style="text-align:center;" value="${p.warranty || ''}" oninput="updateField(${p.id}, 'warranty', this.value)">`;
+              break;
+
+            case 'qty':
+              td.className = 'qty-center';
+              td.innerHTML = `<input class="num-input center" type="text" value="${p.qty}" oninput="updateField(${p.id}, 'qty', this.value||1)">`;
+              break;
+
+            case 'rate':
+              td.className = 'num';
+              td.innerHTML = `<input class="num-input" type="number" min="0" value="${p.rate}" style="text-align:center;" oninput="updateField(${p.id}, 'rate', parseFloat(this.value)||0)">`;
+              break;
+
+            case 'dis':
+              td.className = 'num';
+              td.innerHTML = `<input class="num-input" type="number" min="0" max="100" value="${p.dis}" style="text-align:center;" oninput="updateField(${p.id}, 'dis', parseFloat(this.value)||0)">`;
+              break;
+
+            case 'amount':
+              td.className = 'num';
+              td.style.textAlign = 'center';
+              td.id = `amtCell${p.id}`;
+              td.textContent = `₹${amount.toFixed(2)}`;
+              break;
+
+            default:
+              // Custom column
+              td.innerHTML = `<input class="desc-input" type="text" style="text-align:center;" value="${p[col.id] || ''}" oninput="updateField(${p.id}, '${col.id}', this.value)">`;
+          }
+
+          tr.appendChild(td);
+        });
+
+        // Delete button
+        const tdDel = document.createElement('td');
+        tdDel.innerHTML = `<button class="remove-btn" onclick="removeProduct(${p.id})" title="Remove">×</button>`;
+        tr.appendChild(tdDel);
+
+        // Restore saved row height (after tds are appended)
+        if (rowHeights[p.id]) {
+          requestAnimationFrame(() => applyRowHeight(tr, rowHeights[p.id]));
+        }
+
+        // Row resize handle on first td
+        const firstTd = tr.querySelector('td');
+        if (firstTd) {
+          const rowHandle = document.createElement('div');
+          rowHandle.className = 'row-resize-handle';
+          rowHandle.title = 'Drag to resize row';
+          rowHandle.addEventListener('mousedown', (e) => startRowResize(e, p.id, tr));
+          rowHandle.addEventListener('touchstart', (e) => startRowResize(e, p.id, tr), { passive: false });
+          firstTd.appendChild(rowHandle);
+        }
+
+        tbody.appendChild(tr);
+      });
+
+      // Add row
+      const addTr = document.createElement('tr');
+      addTr.className = 'add-row';
+      const colspan = visibleCols.length + 1;
+      addTr.innerHTML = `<td colspan="${colspan}"><button onclick="addProduct()">+ Add product</button></td>`;
+      tbody.appendChild(addTr);
+
+      recalcTotals();
+      scheduleFit();
+    }
+
+    // ── Helpers ──
+    function autoResize(el) {
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+      scheduleFit();
+    }
+
+    function updateField(id, key, value) {
+      const p = products.find(p => p.id === id);
+      if (p) {
+        p[key] = value;
+        if (key === 'desc') {
+          const printDiv = document.getElementById(`descPrint${id}`);
+          if (printDiv) printDiv.textContent = value;
+        }
+        recalcTotals();
+        // Update amount cell
+        const amtCell = document.getElementById(`amtCell${id}`);
+        if (amtCell) amtCell.textContent = `₹${calcAmount(p.qty, p.rate, p.dis).toFixed(2)}`;
+        scheduleSave();
+      }
+    }
+
+    // Resize + re-encode an image file down to a small JPEG data URL so it
+    // never comes close to Firestore's 1MB-per-document limit. Full-res
+    // phone photos (often 2-8MB) were being stored raw, which is why saves
+    // with an image attached were failing.
+    function resizeImageFile(file, maxDim, quality) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const img = new Image();
+          img.onload = () => {
+            let { width, height } = img;
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round(height * (maxDim / width));
+                width = maxDim;
+              } else {
+                width = Math.round(width * (maxDim / height));
+                height = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          };
+          img.onerror = reject;
+          img.src = ev.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function handleProductImg(event, id) {
+      const file = event.target.files[0];
+      if (!file) return;
+      try {
+        // 500px max dimension, 0.7 JPEG quality — plenty for a table thumbnail
+        // and print, typically a few dozen KB instead of several MB.
+        const dataUrl = await resizeImageFile(file, 500, 0.7);
+        const img = document.getElementById('prodImg' + id);
+        const removeBtn = document.querySelector('#imgCell' + id + ' .img-remove-btn');
+        const p = products.find(p => p.id === id);
+        if (p) p.image = dataUrl;
+        img.src = dataUrl;
+        img.style.display = 'block';
+        if (removeBtn) removeBtn.style.display = '';
+        scheduleSave();
+      } catch (err) {
+        console.error('Image processing failed:', err);
+        setSaveStatus('Image failed', 'error');
+        setTimeout(() => setSaveStatus('', ''), 1800);
+      }
+    }
+
+    function removeProductImg(event, id) {
+      event.stopPropagation();
+      event.preventDefault();
+      const img = document.getElementById('prodImg' + id);
+      const removeBtn = document.querySelector('#imgCell' + id + ' .img-remove-btn');
+      const fileInput = document.getElementById('imgInput' + id);
+      const p = products.find(p => p.id === id);
+      if (p) p.image = '';
+      if (img) { img.src = ''; img.style.display = 'none'; }
+      if (removeBtn) removeBtn.style.display = 'none';
+      if (fileInput) fileInput.value = '';
+      scheduleSave();
+    }
+
+    function calcAmount(qty, rate, dis) {
+      const q = parseFloat(qty) || 0;
+      return q * (parseFloat(rate) || 0) * (1 - (parseFloat(dis) || 0) / 100);
+    }
+
+    function recalcTotals() {
+      const subtotal = products.reduce((sum, p) => sum + calcAmount(p.qty, p.rate, p.dis), 0);
+      const gst = gstEnabled ? subtotal * GST_RATE : 0;
+      const total = subtotal + gst;
+      document.getElementById('subtotal').textContent = `₹${subtotal.toFixed(2)}`;
+      document.getElementById('gstAmt').textContent = `₹${gst.toFixed(2)}`;
+      document.getElementById('grandTotal').textContent = `₹${total.toFixed(2)}`;
+    }
+
+    function addProduct() {
+      const id = nextId++;
+      const p = { id, qty: '', rate: '', dis: '', desc: '', warranty: '', image: '' };
+      columns.filter(c => c.custom).forEach(c => p[c.id] = '');
+      products.push(p);
+      renderTable();
+      scheduleSave();
+    }
+
+    function removeProduct(id) {
+      products = products.filter(p => p.id !== id);
+      renderTable();
+      scheduleSave();
+    }
+
+    function toggleGST() {
+      gstEnabled = document.getElementById('gstToggle').checked;
+      document.getElementById('gstRow').style.display = gstEnabled ? 'flex' : 'none';
+      updateNotes();
+      recalcTotals();
+      scheduleSave();
+    }
+
+    // ── Notes state ──
+    let customNotes = null; // null = use defaults
+
+    function getActiveNotes() {
+      if (customNotes !== null) return customNotes;
+      return (gstEnabled ? NOTES_WITH_GST : NOTES_WITHOUT_GST).slice();
+    }
+
+    function updateNotes() {
+      if (customNotes === null) {
+        customNotes = (gstEnabled ? NOTES_WITH_GST : NOTES_WITHOUT_GST).slice();
+      } else {
+        // Update tax line if it exists
+        const taxIdx = customNotes.findIndex(n => n.includes('All Rate Are'));
+        if (taxIdx !== -1) {
+          customNotes[taxIdx] = gstEnabled ? '5 . All Rate Are Including Tax' : '5 . All Rate Are Excluding Tax';
+        }
+      }
+      renderNotes();
+    }
+
+    function renderNotes() {
+      const list = document.getElementById('notesList');
+      const notes = getActiveNotes();
+      list.innerHTML = notes.map((n, i) => `
+        <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px;" class="note-row">
+          <input class="note-input" value="${n.replace(/"/g, '&quot;')}" oninput="editNote(${i}, this.value)"
+            style="font-size:12px;color:#000;border:none;border-bottom:0.5px solid transparent;background:transparent;font-family:inherit;outline:none;flex:1;padding:1px 0;line-height:1.9;"
+            onfocus="this.style.borderBottomColor='#B4B2A9'"
+            onblur="this.style.borderBottomColor='transparent'">
+          <button onclick="removeNote(${i})" class="note-del-btn" title="Remove"
+            style="background:none;border:none;cursor:pointer;color:#C4C2B9;font-size:14px;line-height:1;padding:0 2px;flex-shrink:0;opacity:0;transition:opacity 0.15s;">×</button>
+        </div>
+      `).join('');
+      // Show delete buttons on row hover
+      list.querySelectorAll('.note-row').forEach(row => {
+        const btn = row.querySelector('.note-del-btn');
+        row.addEventListener('mouseenter', () => btn.style.opacity = '1');
+        row.addEventListener('mouseleave', () => btn.style.opacity = '0');
+      });
+    }
+
+    function editNote(i, val) {
+      if (customNotes === null) customNotes = getActiveNotes();
+      customNotes[i] = val;
+      scheduleSave();
+    }
+
+    function addNote() {
+      if (customNotes === null) customNotes = getActiveNotes();
+      customNotes.push('');
+      renderNotes();
+      // Focus the new input
+      const inputs = document.querySelectorAll('.note-input');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+      scheduleSave();
+    }
+
+    function removeNote(i) {
+      if (customNotes === null) customNotes = getActiveNotes();
+      customNotes.splice(i, 1);
+      renderNotes();
+      scheduleSave();
+    }
+
+    function formatDate(d) {
+      return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    function updateValidDateDisplay(val) {
+      const el = document.getElementById('validDateDisplay');
+      if (!el) return;
+      if (val) {
+        const d = new Date(val + 'T00:00:00');
+        el.textContent = formatDate(d);
+      } else {
+        el.textContent = '';
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // ── Firebase autosave / load / search ──
+    // ══════════════════════════════════════════════════════════
+    function setSaveStatus(text, cls) {
+      const el = document.getElementById('saveStatus');
+      if (!el) return;
+      el.textContent = text;
+      el.className = 'save-status' + (cls ? ' ' + cls : '');
+    }
+
+    function scheduleSave() {
+      if (!firebaseReady || !autosaveEnabled) return;
+      setSaveStatus('Saving…', 'saving');
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveQuotation, 700);
+    }
+
+    function getPartyFields() {
+      return {
+        partyName: document.getElementById('partyNameInput')?.value || '',
+        partyAddress: document.getElementById('partyAddressInput')?.value || '',
+        partyPhone: document.getElementById('partyPhoneInput')?.value || '',
+        validDate: document.getElementById('validDate')?.value || ''
+      };
+    }
+
+    async function saveQuotation() {
+      if (!firebaseReady) return;
+      try {
+        if (!currentDocId) currentDocId = db.collection(COLLECTION).doc().id;
+        const quotNum = document.getElementById('quotNum').textContent.trim();
+        const last3 = quotNum.slice(-3);
+        const party = getPartyFields();
+        const data = {
+          quotNum,
+          quotDate: document.getElementById('quotDate').textContent.trim(),
+          last3,
+          partyName: party.partyName,
+          partyNameLower: party.partyName.toLowerCase(),
+          partyAddress: party.partyAddress,
+          partyPhone: party.partyPhone,
+          validDate: party.validDate,
+          gstEnabled,
+          notes: getActiveNotes(),
+          columns,
+          products
+        };
+        // Sanitize: strip anything not JSON-safe (undefined, functions, DOM refs, etc.)
+        // before it ever reaches Firestore — this is what "invalid nested entity" errors
+        // are almost always caused by.
+        const safeData = JSON.parse(JSON.stringify(data));
+        safeData.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+        await db.collection(COLLECTION).doc(currentDocId).set(safeData, { merge: false });
+        setSaveStatus('Saved ✓', 'saved');
+        setTimeout(() => setSaveStatus('', ''), 1800);
+      } catch (err) {
+        console.error('Save failed:', err);
+        setSaveStatus('Save failed', 'error');
+        const el = document.getElementById('saveStatus');
+        if (el) el.title = err.message || String(err);
+      }
+    }
+
+    async function nextQuotationNumber() {
+      const year = new Date().getFullYear();
+      if (!firebaseReady) {
+        const num = String(Math.floor(Math.random() * 900) + 100);
+        return `#QT-${year}-${num}`;
+      }
+      try {
+        const ref = db.collection('meta').doc(COUNTER_ID);
+        return await db.runTransaction(async (t) => {
+          const snap = await t.get(ref);
+          const d = snap.exists ? snap.data() : {};
+          const seq = (d.year === year ? (d.seq || 0) : 0) + 1;
+          t.set(ref, { year, seq });
+          return `#QT-${year}-${String(seq).padStart(3, '0')}`;
+        });
+      } catch (e) {
+        console.error('Counter failed, falling back to random number:', e);
+        const num = String(Math.floor(Math.random() * 900) + 100);
+        return `#QT-${year}-${num}`;
+      }
+    }
+
+    async function startNewQuotation() {
+      currentDocId = firebaseReady ? db.collection(COLLECTION).doc().id : null;
+      products = [];
+      nextId = 1;
+      columns = JSON.parse(JSON.stringify(DEFAULT_COLUMNS));
+      gstEnabled = false;
+      const gstToggleEl = document.getElementById('gstToggle');
+      if (gstToggleEl) gstToggleEl.checked = false;
+      document.getElementById('gstRow').style.display = 'none';
+      customNotes = null;
+      rowHeights = {};
+
+      const partyName = document.getElementById('partyNameInput');
+      const partyAddr = document.getElementById('partyAddressInput');
+      const partyPhone = document.getElementById('partyPhoneInput');
+      if (partyName) partyName.value = '';
+      if (partyAddr) partyAddr.value = '';
+      if (partyPhone) partyPhone.value = '';
+
+      const today = new Date();
+      document.getElementById('quotDate').textContent = formatDate(today);
+      const valid = new Date(today);
+      valid.setDate(valid.getDate() + 7);
+      const validDateVal = valid.toISOString().split('T')[0];
+      document.getElementById('validDate').value = validDateVal;
+      updateValidDateDisplay(validDateVal);
+
+      document.getElementById('quotNum').textContent = await nextQuotationNumber();
+      updateNotes();
+      addProduct();
+      closeLoadOverlay();
+    }
+
+    function loadQuotationIntoApp(data, id) {
+      currentDocId = id;
+      products = data.products || [];
+      nextId = products.reduce((m, p) => Math.max(m, p.id || 0), 0) + 1;
+      columns = data.columns && data.columns.length ? data.columns : JSON.parse(JSON.stringify(DEFAULT_COLUMNS));
+      gstEnabled = !!data.gstEnabled;
+      const gstToggleEl = document.getElementById('gstToggle');
+      if (gstToggleEl) gstToggleEl.checked = gstEnabled;
+      document.getElementById('gstRow').style.display = gstEnabled ? 'flex' : 'none';
+      customNotes = data.notes && data.notes.length ? data.notes : null;
+      rowHeights = {};
+
+      const partyName = document.getElementById('partyNameInput');
+      const partyAddr = document.getElementById('partyAddressInput');
+      const partyPhone = document.getElementById('partyPhoneInput');
+      if (partyName) partyName.value = data.partyName || '';
+      if (partyAddr) partyAddr.value = data.partyAddress || '';
+      if (partyPhone) partyPhone.value = data.partyPhone || '';
+
+      document.getElementById('quotNum').textContent = data.quotNum || '';
+      document.getElementById('quotDate').textContent = data.quotDate || '';
+      document.getElementById('validDate').value = data.validDate || '';
+      updateValidDateDisplay(data.validDate || '');
+
+      updateNotes();
+      renderTable();
+      closeLoadOverlay();
+      setSaveStatus('Loaded ✓', 'saved');
+      setTimeout(() => setSaveStatus('', ''), 1800);
+    }
+
+    function openLoadOverlay() {
+      if (!firebaseReady) {
+        alert('Firebase is not configured yet. Add your project keys to firebaseConfig at the top of the script to enable saving and loading quotations.');
+        return;
+      }
+      document.getElementById('loadOverlay').classList.add('open');
+      document.getElementById('searchInput').value = '';
+      const results = document.getElementById('searchResults');
+      results.innerHTML = '<div style="font-size:12px;color:#888780;">Loading…</div>';
+      db.collection(COLLECTION).orderBy('updatedAt', 'desc').limit(300).get()
+        .then(snap => {
+          allQuotationsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          renderSearchResults('');
+        })
+        .catch(err => {
+          console.error(err);
+          results.innerHTML = `<div style="font-size:12px;color:#C0392B;">Failed to load quotations: ${err.message}</div>`;
+        });
+    }
+
+    function closeLoadOverlay() {
+      document.getElementById('loadOverlay').classList.remove('open');
+    }
+
+    function handleSearchInput() {
+      renderSearchResults(document.getElementById('searchInput').value.trim());
+    }
+
+    function renderSearchResults(term) {
+      const t = term.toLowerCase();
+      const filtered = !t ? allQuotationsCache : allQuotationsCache.filter(q =>
+        (q.partyNameLower || '').includes(t) ||
+        (q.last3 || '').includes(t) ||
+        (q.quotNum || '').toLowerCase().includes(t)
+      );
+      const el = document.getElementById('searchResults');
+      if (!filtered.length) {
+        el.innerHTML = '<div style="font-size:12px;color:#888780;">No quotations found.</div>';
+        return;
+      }
+      el.innerHTML = filtered.slice(0, 50).map(q => {
+        const total = (q.products || []).reduce((sum, p) => sum + calcAmount(p.qty, p.rate, p.dis), 0) * (q.gstEnabled ? 1 + GST_RATE : 1);
+        return `
+        <div class="search-result-item" onclick='selectQuotation(${JSON.stringify(q.id)})'>
+          <div>
+            <div class="search-result-name">${(q.partyName || 'Untitled').replace(/</g, '&lt;')}</div>
+            <div class="search-result-meta">${q.quotNum || ''} · ${q.quotDate || ''}</div>
+          </div>
+          <div class="search-result-total">₹${total.toFixed(2)}</div>
+        </div>`;
+      }).join('');
+    }
+
+    function selectQuotation(id) {
+      const data = allQuotationsCache.find(q => q.id === id);
+      if (data) loadQuotationIntoApp(data, id);
+    }
+
+    // ── Init ──
+    (async function init() {
+      const toggle = document.getElementById('autosaveToggle');
+      if (toggle) toggle.checked = autosaveEnabled;
+      await startNewQuotation();
+      fitDocToScreen();
+    })();
+  </script>
+</body>
+</html>
