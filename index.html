@@ -1098,10 +1098,10 @@ document.getElementById("companyDetails").innerHTML = `
     // locked: cannot be toggled off; isAmount: drives totals
     let columns = [
       { id: 'image',   label: 'Image',       visible: true,  locked: false, width: '112px', align: 'center' },
-      { id: 'desc',    label: 'Description', visible: true,  locked: true,  width: '197px', align: 'left'   },
+      { id: 'desc',    label: 'Description', visible: true,  locked: true,  width: '200px', align: 'left'   },
       { id: 'warranty',label: 'Warranty',    visible: true,  locked: false, width: '80px',  align: 'center' },
       { id: 'qty',     label: 'Qty',         visible: true,  locked: false, width: '52px',  align: 'center' },
-      { id: 'rate',    label: 'Rate (₹)',    visible: true,  locked: false, width: '65px',  align: 'center' },
+      { id: 'rate',    label: 'Rate (₹)',    visible: true,  locked: false, width: '62px',  align: 'center' },
       { id: 'dis',     label: 'Dis %',       visible: true,  locked: false, width: '50px',  align: 'center' },
       { id: 'amount',  label: 'Amount (₹)',  visible: true,  locked: true,  width: '78px',  align: 'center', isAmount: true },
     ];
@@ -1840,11 +1840,66 @@ document.getElementById("companyDetails").innerHTML = `
             <div class="search-result-name">${(q.partyName || 'Untitled').replace(/</g, '&lt;')}</div>
             <div class="search-result-meta">${q.quotNum || ''} · ${q.quotDate || ''}</div>
           </div>
-          <div class="search-result-total">₹${total.toFixed(2)}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:90px;">
+    <div class="search-result-total" style="margin-right:6px;">
+₹${total.toFixed(2)}
+</div>
+
+    <button
+        onclick="event.stopPropagation(); deleteQuotation('${q.id}')"
+        style="
+            border:none;
+            background:none;
+            cursor:pointer;
+            font-size:16px;
+            color:#C0392B;
+        "
+        title="Delete quotation">
+        🗑️
+    </button>
+</div>
         </div>`;
       }).join('');
     }
+async function deleteQuotation(id) {
 
+    if (!confirm(
+`Delete this quotation?
+
+This action cannot be undone.`
+)) {
+    return;
+}
+
+
+    try {
+
+        await db.collection(COLLECTION).doc(id).delete();
+        if (currentDocId === id) {
+
+    currentDocId = null;
+
+    startNewQuotation();
+
+}
+
+        allQuotationsCache =
+            allQuotationsCache.filter(q => q.id !== id);
+
+        renderSearchResults(
+            document.getElementById("searchInput").value.trim()
+        );
+
+        alert("Quotation deleted successfully.");
+
+    } catch (err) {
+
+        console.error(err);
+        alert("Failed to delete quotation.");
+
+    }
+
+}
     function selectQuotation(id) {
       const data = allQuotationsCache.find(q => q.id === id);
       if (data) loadQuotationIntoApp(data, id);
