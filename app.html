@@ -86,7 +86,7 @@
       }
       .row-resize-handle {
         display: block !important;
-        height: 5px !important;
+        height: 22px !important;
         bottom: -11px !important;
         touch-action: none;
       }
@@ -1395,7 +1395,7 @@ showAppAfterAuth();
       function onMove(e) {
         e.preventDefault();
         const delta = (clientY(e) - startY) / scale;
-        const newH = Math.max(24, startH + delta);
+        const newH = Math.max(5, startH + delta);
         rowHeights[productId] = newH;
         applyRowHeight(tr, newH);
       }
