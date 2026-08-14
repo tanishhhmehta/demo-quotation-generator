@@ -1005,9 +1005,8 @@ try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
     auth = firebase.auth();
-    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch((error) => {
-        console.error("Auth persistence failed:", error);
-    });
+    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).then(() => {
+    firebaseReady = true;
     auth.onAuthStateChanged(async (user) => {
 
     if (!user) {
@@ -1089,8 +1088,11 @@ showAppAfterAuth();
     console.error(e);
     alert(e.message);
 }
+    });
+}).catch((error) => {
+    console.error("Auth persistence failed:", error);
+    window.location.href = "index.html";
 });
-    firebaseReady = true;
 } catch (e) {
     console.error('Firebase init failed – check firebaseConfig at the top of the script.', e);
 }
