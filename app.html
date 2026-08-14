@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ELEVEN PEARL — Quotation</title>
+  <title>Quotation-Generator</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -1014,7 +1014,7 @@ if (details) {
     details.innerHTML = `
         ${currentBusiness.address1 || ""}<br>
         ${currentBusiness.address2 || ""}<br>
-        ${currentBusiness.phone || ""}&nbsp;&nbsp;&nbsp;
+        ${currentBusiness.phone || ""}&nbsp;&nbsp;&nbsp;<br>
         ${currentBusiness.email || ""}
     `;
 }
@@ -1098,12 +1098,12 @@ document.getElementById("companyDetails").innerHTML = `
     // locked: cannot be toggled off; isAmount: drives totals
     let columns = [
       { id: 'image',   label: 'Image',       visible: true,  locked: false, width: '112px', align: 'center' },
-      { id: 'desc',    label: 'Description', visible: true,  locked: true,  width: '200px', align: 'left'   },
-      { id: 'warranty',label: 'Warranty',    visible: true,  locked: false, width: '80px',  align: 'center' },
+      { id: 'desc',    label: 'Description', visible: true,  locked: true,  width: '197px', align: 'left'   },      
       { id: 'qty',     label: 'Qty',         visible: true,  locked: false, width: '52px',  align: 'center' },
       { id: 'rate',    label: 'Rate (₹)',    visible: true,  locked: false, width: '62px',  align: 'center' },
       { id: 'dis',     label: 'Dis %',       visible: true,  locked: false, width: '50px',  align: 'center' },
-      { id: 'amount',  label: 'Amount (₹)',  visible: true,  locked: true,  width: '78px',  align: 'center', isAmount: true },
+      { id: 'warranty',label: 'Warranty',    visible: true,  locked: false, width: '80px',  align: 'center' },
+      { id: 'amount',  label: 'Amount (₹)',  visible: true,  locked: true,  width: '82px',  align: 'center', isAmount: true },
     ];
     // action column (delete button) is always appended, not in columns[]
     const DEFAULT_COLUMNS = JSON.parse(JSON.stringify(columns));
