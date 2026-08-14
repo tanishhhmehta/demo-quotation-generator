@@ -65,8 +65,18 @@
         border-radius: 8px;
       }
 
-      /* Resize handles are unreliable at scaled touch coordinates — hide on mobile */
-      .col-resize-handle, .row-resize-handle { display: none !important; }
+      .col-resize-handle {
+        display: block !important;
+        width: 22px !important;
+        right: -11px !important;
+        touch-action: none;
+      }
+      .row-resize-handle {
+        display: block !important;
+        height: 22px !important;
+        bottom: -11px !important;
+        touch-action: none;
+      }
 
       /* Responsive modal panels */
       .col-manager-panel { width: 92vw !important; max-width: 380px; padding: 20px; }
@@ -204,6 +214,22 @@
       font-size: 13px;
       color: #000;
     }
+    .col-move-btn {
+      width: 28px;
+      height: 28px;
+      border: 0.5px solid #D3D1C7;
+      border-radius: 6px;
+      background: #fff;
+      color: #444441;
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .col-move-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
     .col-toggle {
       position: relative;
       width: 32px;
@@ -289,7 +315,7 @@
 
     /* ── Logo + Header ── */
     .header {
-      padding: 24px 45px 20px 20px;
+      padding: 24px 38px 20px 28px;
       border-bottom: 0.5px solid #D3D1C7;
       display: flex;
       justify-content: space-between;
@@ -647,7 +673,8 @@ padding-bottom: 6px !important; background: transparent !important; -webkit-appe
           <div class="brand-sub" id="companyDetails">
             ADDRESS LINE 1<br>
             ADDRESS LINE 2<br>
-            97838 14926 &nbsp;·&nbsp; companyname@gmail.com
+            97838 14926<br>
+            companyname@gmail.com
           </div>
         </div>
       </div>
@@ -957,7 +984,7 @@ try {
     auth.onAuthStateChanged(async (user) => {
 
     if (!user) {
-        window.location.href = "index.html";
+        window.location.href = "app.html";
         return;
     }
 
@@ -1050,10 +1077,9 @@ document.getElementById("companyDetails").innerHTML = `
     let saveTimer = null;
     let allQuotationsCache = [];
 
-    // Autosave is OFF by default — nothing gets written to Firestore just from
-    // opening/editing the page. Turning the toggle on remembers your choice
-    // (via localStorage) so you don't have to flip it every time you refresh.
-    let autosaveEnabled = localStorage.getItem('ep_autosaveEnabled') === 'true';
+    // Autosave stays on by default and is re-enabled on every page load.
+    let autosaveEnabled = true;
+    localStorage.setItem('ep_autosaveEnabled', 'true');
 
     function setAutosaveEnabled(val) {
       autosaveEnabled = !!val;
@@ -1135,6 +1161,8 @@ document.getElementById("companyDetails").innerHTML = `
         item.innerHTML = `
           <span class="col-drag-handle">${col.locked ? '⠿' : '⠿'}</span>
           <span class="col-item-name">${col.label}</span>
+          <button class="col-move-btn" onclick="moveColumn(${idx}, -1)" ${!canMoveColumn(idx, -1) ? 'disabled' : ''} title="Move left">‹</button>
+          <button class="col-move-btn" onclick="moveColumn(${idx}, 1)" ${!canMoveColumn(idx, 1) ? 'disabled' : ''} title="Move right">›</button>
           ${col.locked ? '<span style="font-size:10px;color:#B4B2A9;">required</span>' : `
           <label class="col-toggle">
             <input type="checkbox" ${col.visible ? 'checked' : ''} onchange="toggleColVisible(${idx}, this.checked)">
@@ -1145,6 +1173,23 @@ document.getElementById("companyDetails").innerHTML = `
         `;
         list.appendChild(item);
       });
+    }
+
+    function canMoveColumn(idx, dir) {
+      if (idx < 0 || idx >= columns.length) return false;
+      const targetIdx = idx + dir;
+      if (targetIdx < 0 || targetIdx >= columns.length) return false;
+      return !columns[idx].locked && !columns[targetIdx].locked;
+    }
+
+    function moveColumn(idx, dir) {
+      if (!canMoveColumn(idx, dir)) return;
+      const targetIdx = idx + dir;
+      const moved = columns.splice(idx, 1)[0];
+      columns.splice(targetIdx, 0, moved);
+      renderColManager();
+      renderTable();
+      scheduleSave();
     }
 
     function toggleColVisible(idx, val) {
@@ -1247,6 +1292,12 @@ document.getElementById("companyDetails").innerHTML = `
     // ── Unified pointer helpers (mouse + touch) ──
     function clientX(e) { return e.touches ? e.touches[0].clientX : e.clientX; }
     function clientY(e) { return e.touches ? e.touches[0].clientY : e.clientY; }
+    function getDocScale() {
+      const docEl = document.getElementById('quotation');
+      if (!docEl) return 1;
+      const rect = docEl.getBoundingClientRect();
+      return rect.width ? rect.width / docEl.offsetWidth : 1;
+    }
 
     function addMoveListeners(onMove, onUp) {
       document.addEventListener('mousemove', onMove);
@@ -1268,14 +1319,15 @@ document.getElementById("companyDetails").innerHTML = `
       e.stopPropagation();
       const startX = clientX(e);
       const startW = th.offsetWidth;
+      const scale = getDocScale();
       const handle = th.querySelector('.col-resize-handle');
       handle.classList.add('resizing');
       document.body.style.cursor = 'col-resize';
-      colResizeState = { col, th, startX, startW, handle };
+      colResizeState = { col, th, startX, startW, handle, scale };
 
       function onMove(e) {
         e.preventDefault();
-        const delta = clientX(e) - colResizeState.startX;
+        const delta = (clientX(e) - colResizeState.startX) / colResizeState.scale;
         const newW = Math.max(40, colResizeState.startW + delta);
         colResizeState.col.width = newW + 'px';
         colResizeState.th.style.width = newW + 'px';
@@ -1304,13 +1356,14 @@ document.getElementById("companyDetails").innerHTML = `
       e.stopPropagation();
       const startY = clientY(e);
       const startH = tr.offsetHeight;
+      const scale = getDocScale();
       const handle = tr.querySelector('.row-resize-handle');
       if (handle) handle.classList.add('resizing');
       document.body.style.cursor = 'row-resize';
 
       function onMove(e) {
         e.preventDefault();
-        const delta = clientY(e) - startY;
+        const delta = (clientY(e) - startY) / scale;
         const newH = Math.max(24, startH + delta);
         rowHeights[productId] = newH;
         applyRowHeight(tr, newH);
