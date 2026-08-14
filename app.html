@@ -321,7 +321,13 @@
       justify-content: space-between;
       align-items: center;
     }
-    .brand-left { display: flex; align-items: left; gap: 16px; }
+    .brand-left { display: flex; align-items: center; gap: 16px; }
+    .EP {
+      width: 85px;
+      height: 85px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
     .logo-wrap {
       width: 64px; height: 64px;
       border: none; border-radius: 8px;
@@ -334,7 +340,7 @@
     .logo-wrap svg { width: 22px; height: 22px; stroke: #B4B2A9; fill: none; }
     .logo-placeholder { font-size: 9px; color: #000000; text-align: center; pointer-events: none; }
     .brand-name { font-size: 20px; font-weight: 600; color: #000000; letter-spacing: 0.06em; }
-    .brand-sub { font-size: 11px; color: #000000; margin-top: 4px; line-height: 1.8; }
+    .brand-sub { font-size: 11px; color: #000000; margin-top: 4px; line-height: 1.55; }
     .doc-meta { text-align: right; }
     .doc-label { font-size: 10px; font-weight: 600; letter-spacing: 0.1em; color: #000000; text-transform: uppercase; margin-bottom: 4px; }
     .doc-number { font-size: 18px; font-weight: 600; color: #000000; }
@@ -984,7 +990,7 @@ try {
     auth.onAuthStateChanged(async (user) => {
 
     if (!user) {
-        window.location.href = "index.html";
+        window.location.href = "app.html";
         return;
     }
 
@@ -1124,9 +1130,9 @@ document.getElementById("companyDetails").innerHTML = `
     // locked: cannot be toggled off; isAmount: drives totals
     let columns = [
       { id: 'image',   label: 'Image',       visible: true,  locked: false, width: '112px', align: 'center' },
-      { id: 'desc',    label: 'Description', visible: true,  locked: true,  width: '197px', align: 'left'   },      
+      { id: 'desc',    label: 'Description', visible: true,  locked: true,  width: '193px', align: 'left'   },      
       { id: 'qty',     label: 'Qty',         visible: true,  locked: false, width: '52px',  align: 'center' },
-      { id: 'rate',    label: 'Rate (₹)',    visible: true,  locked: false, width: '62px',  align: 'center' },
+      { id: 'rate',    label: 'Rate (₹)',    visible: true,  locked: false, width: '69px',  align: 'center' },
       { id: 'dis',     label: 'Dis %',       visible: true,  locked: false, width: '50px',  align: 'center' },
       { id: 'warranty',label: 'Warranty',    visible: true,  locked: false, width: '80px',  align: 'center' },
       { id: 'amount',  label: 'Amount (₹)',  visible: true,  locked: true,  width: '82px',  align: 'center', isAmount: true },
